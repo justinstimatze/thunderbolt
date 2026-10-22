@@ -17,6 +17,7 @@
  * in the body's `instructions` field, which it appends to its system prompt.
  */
 
+import { quoteSyncedTurns } from '@/integrations/alpha/provenance'
 import { isAttachmentPart, undeliverableAttachmentsNote } from '@/lib/attachments'
 import { classifyErrorKind, createChatErrorResponse } from '@/lib/error-utils'
 import { HttpError, isBackendRequest } from '@/lib/http'
@@ -96,7 +97,7 @@ const toHostedAgentMessage = ({ id, role, parts }: ThunderboltUIMessage): Hosted
  */
 export const toManagedHttpBody = (body: string): { id: string; messages: HostedAgentMessage[] } => {
   const { id, messages = [] } = JSON.parse(body) as { id: string; messages?: ThunderboltUIMessage[] }
-  const forwarded = hydrateQuotesAsText(messages.slice(-maxHostedAgentHistoryMessages))
+  const forwarded = hydrateQuotesAsText(quoteSyncedTurns(messages.slice(-maxHostedAgentHistoryMessages)))
     .map(toHostedAgentMessage)
     .filter((message) => message.parts.length > 0)
   const history = startOnUserMessage(forwarded)

@@ -7,6 +7,7 @@ import {
   type IncrementalMarkdownState,
   parseMarkdownIntoBlocks,
   parseMarkdownIntoBlocksIncremental,
+  rewriteMath,
 } from './markdown-blocks'
 
 /**
@@ -181,5 +182,42 @@ describe('parseMarkdownIntoBlocksIncremental', () => {
         })
       }
     }
+  })
+})
+
+describe('rewriteMath on hostile text', () => {
+  /** Milliseconds `fn` takes. */
+  const timed = (fn: () => unknown) => {
+    const start = performance.now()
+    fn()
+    return performance.now() - start
+  }
+  // 200k characters is the most one message synced from AI Potluck may carry. A lazy regex took
+  // seconds on each of these, re-scanning to the end of the text from every opener; each pass is
+  // linear, so the whole rewrite takes milliseconds.
+  const size = 200_000
+  const hostile = {
+    'unpaired \\[ openers': '\\['.repeat(size / 2),
+    'unpaired \\( openers': '\\('.repeat(size / 2),
+    'unpaired \\[ openers between words': 'a \\[ '.repeat(size / 5),
+    'dense math spans and currency dollars': '$$a$$ $1 '.repeat(Math.floor(size / 9)),
+    'a $$ line with a long space run and no closer': `$$a${' '.repeat(size - 4)}b`,
+    'a $$ line with long space runs before its closer': `$$a${' '.repeat(size / 2)}b${' '.repeat(size / 2)}$$`,
+  }
+
+  for (const [name, text] of Object.entries(hostile)) {
+    it(`rewrites ${name} (200k characters) in linear time`, () => {
+      expect(timed(() => rewriteMath(text))).toBeLessThan(250)
+    })
+  }
+
+  it('still pairs, fences and escapes as before', () => {
+    expect(rewriteMath('\\[\\[x\\]')).toBe('$$\n\\[x\n$$')
+    expect(rewriteMath('a \\( b \\( c \\)')).toBe('a $b \\( c$')
+    expect(rewriteMath('  \\[ x \\] and \\[ y \\]')).toBe('  $$\n  x\n  $$\n  and\n  $$\ny\n$$')
+    expect(rewriteMath('x $$a$$ $1 $3.14$ and $5')).toBe('x $$a$$ \\$1 $3.14$ and \\$5')
+    expect(rewriteMath('  $$ x $$  ')).toBe('  $$\n  x\n  $$')
+    expect(rewriteMath('\\[ \\] then \\[')).toBe('\\[ \\] then \\[')
+    expect(rewriteMath('line\n\t\\[\n  y\n\\]\n')).toBe('line\n\t$$\n\ty\n\t$$\n')
   })
 })

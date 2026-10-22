@@ -6,14 +6,17 @@ import { getDb } from '@/db/database'
 import { chatMessagesTable, chatThreadsTable, modelsTable } from '@/db/tables'
 import type { ThunderboltUIMessage } from '@/types'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
-import { eq } from 'drizzle-orm'
+import { eq, isNotNull } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import {
   deleteChatMessageAndDescendants,
   getChatMessages,
   getLastMessage,
   saveMessagesWithContextUpdate,
+  saveChatMessagesWithParents,
   saveStreamingAssistantMessage,
+  restoreChatMessages,
+  softDeleteChatMessages,
 } from './chat-messages'
 import { resetTestDatabase, setupTestDatabase, teardownTestDatabase } from './test-utils'
 
@@ -637,6 +640,148 @@ describe('Chat Messages DAL', () => {
       const messages = await getChatMessages(getDb(), threadId)
       expect(messages).toHaveLength(1)
       expect(messages[0]?.id).toBe(msg1Id)
+    })
+  })
+
+  describe('softDeleteChatMessages', () => {
+    it('soft-deletes exactly the named messages and leaves their replies alone', async () => {
+      const db = getDb()
+      const threadId = uuidv7()
+      await db.insert(chatThreadsTable).values({ id: threadId, title: 'Test Thread', isEncrypted: 0 })
+      const [first, second, third] = [uuidv7(), uuidv7(), uuidv7()]
+      await db.insert(chatMessagesTable).values([
+        { id: first, chatThreadId: threadId, role: 'user', content: 'one', parentId: null },
+        { id: second, chatThreadId: threadId, role: 'assistant', content: 'two', parentId: first },
+        { id: third, chatThreadId: threadId, role: 'user', content: 'three', parentId: second },
+      ])
+
+      await softDeleteChatMessages(db, [second])
+
+      const live = await getChatMessages(db, threadId)
+      expect(live.map((m) => m.id)).toEqual([first, third])
+      const deleted = await db.select().from(chatMessagesTable).where(eq(chatMessagesTable.id, second)).get()
+      expect(deleted?.deletedAt).not.toBeNull()
+      expect(deleted?.content).toBeNull()
+    })
+
+    it('moves a live reply of a deleted message up to the nearest ancestor that stays', async () => {
+      const db = getDb()
+      const threadId = uuidv7()
+      await db.insert(chatThreadsTable).values({ id: threadId, title: 'Test Thread', isEncrypted: 0 })
+      const [first, second, third, fourth] = [uuidv7(), uuidv7(), uuidv7(), uuidv7()]
+      await db.insert(chatMessagesTable).values([
+        { id: first, chatThreadId: threadId, role: 'user', content: 'one', parentId: null },
+        { id: second, chatThreadId: threadId, role: 'assistant', content: 'two', parentId: first },
+        { id: third, chatThreadId: threadId, role: 'user', content: 'three', parentId: second },
+        { id: fourth, chatThreadId: threadId, role: 'assistant', content: 'four', parentId: third },
+      ])
+
+      await softDeleteChatMessages(db, [second, third])
+
+      const kept = await db.select().from(chatMessagesTable).where(eq(chatMessagesTable.id, fourth)).get()
+      expect(kept?.parentId).toBe(first)
+      // Deleting from the top still reaches it.
+      await deleteChatMessageAndDescendants(db, first)
+      expect(await getChatMessages(db, threadId)).toEqual([])
+    })
+
+    it('leaves the marker given on each row it deletes, and on no row that was already deleted', async () => {
+      const db = getDb()
+      const threadId = uuidv7()
+      await db.insert(chatThreadsTable).values({ id: threadId, title: 'Test Thread', isEncrypted: 0 })
+      const [first, second] = [uuidv7(), uuidv7()]
+      await db.insert(chatMessagesTable).values([
+        { id: first, chatThreadId: threadId, role: 'user', content: 'one', parentId: null },
+        { id: second, chatThreadId: threadId, role: 'assistant', content: 'two', parentId: first },
+      ])
+      await softDeleteChatMessages(db, [first])
+      const marker = { alpha: { conversationId: 'c', messageId: 'm', dropped: true } }
+
+      await softDeleteChatMessages(db, [first, second], new Map([first, second].map((id) => [id, marker])))
+
+      const deleted = await db
+        .select()
+        .from(chatMessagesTable)
+        .where(isNotNull(chatMessagesTable.deletedAt))
+        .orderBy(chatMessagesTable.id)
+      expect(deleted.map((r) => [r.id, r.metadata, r.content])).toEqual([
+        [first, null, null],
+        [second, marker, null],
+      ])
+    })
+  })
+
+  describe('restoreChatMessages', () => {
+    it('brings a soft-deleted message back with its text and the parent given, and leaves a live row alone', async () => {
+      const db = getDb()
+      const threadId = uuidv7()
+      await db.insert(chatThreadsTable).values({ id: threadId, title: 'Test Thread', isEncrypted: 0 })
+      const [first, second, live] = [uuidv7(), uuidv7(), uuidv7()]
+      await db.insert(chatMessagesTable).values([
+        { id: first, chatThreadId: threadId, role: 'user', content: 'one', parentId: null },
+        { id: second, chatThreadId: threadId, role: 'assistant', content: 'two', parentId: first },
+        { id: live, chatThreadId: threadId, role: 'assistant', content: 'kept', parentId: first },
+      ])
+      await softDeleteChatMessages(db, [second])
+      const text = (id: string, value: string) =>
+        ({ id, role: 'assistant', parts: [{ type: 'text', text: value }] }) as ThunderboltUIMessage
+
+      await restoreChatMessages(db, threadId, [
+        { message: text(second, 'two again'), parentId: first },
+        { message: text(live, 'overwritten'), parentId: null },
+      ])
+
+      const rows = await getChatMessages(db, threadId)
+      expect(rows.map((r) => [r.id, r.parentId, r.content])).toEqual([
+        [first, null, 'one'],
+        [second, first, 'two again'],
+        [live, first, 'kept'],
+      ])
+    })
+  })
+
+  describe('saveChatMessagesWithParents', () => {
+    it('leaves a row deleted meanwhile deleted, with no content written back into it', async () => {
+      const db = getDb()
+      const threadId = uuidv7()
+      await db.insert(chatThreadsTable).values({ id: threadId, title: 'Test Thread', isEncrypted: 0 })
+      const reply = uuidv7()
+      await db.insert(chatMessagesTable).values({ id: reply, chatThreadId: threadId, role: 'assistant', content: 'x' })
+      await deleteChatMessageAndDescendants(db, reply)
+
+      await saveChatMessagesWithParents(db, threadId, [
+        {
+          message: { id: reply, role: 'assistant', parts: [{ type: 'text', text: 'About an hour.' }] },
+          parentId: null,
+        },
+      ])
+
+      const row = await db.select().from(chatMessagesTable).where(eq(chatMessagesTable.id, reply)).get()
+      expect([row?.deletedAt === null, row?.content, row?.parts]).toEqual([false, null, null])
+    })
+
+    it('places each message under the parent given, and leaves an existing row where it is', async () => {
+      const db = getDb()
+      const threadId = uuidv7()
+      await db.insert(chatThreadsTable).values({ id: threadId, title: 'Test Thread', isEncrypted: 0 })
+      const [first, second, later] = [uuidv7(), uuidv7(), uuidv7()]
+      await db.insert(chatMessagesTable).values([
+        { id: first, chatThreadId: threadId, role: 'user', content: 'one', parentId: null },
+        { id: later, chatThreadId: threadId, role: 'user', content: 'later', parentId: first },
+      ])
+      const text = (id: string, value: string) =>
+        ({ id, role: 'assistant', parts: [{ type: 'text', text: value }] }) as ThunderboltUIMessage
+
+      await saveChatMessagesWithParents(db, threadId, [{ message: text(second, 'two'), parentId: first }])
+      await saveChatMessagesWithParents(db, threadId, [{ message: text(later, 'edited'), parentId: second }])
+
+      const rows = await getChatMessages(db, threadId)
+      expect(rows.map((r) => [r.id, r.parentId])).toEqual([
+        [first, null],
+        [second, first],
+        [later, first],
+      ])
+      expect(rows[2].parts).toEqual([{ type: 'text', text: 'edited' }])
     })
   })
 })

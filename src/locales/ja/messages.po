@@ -96,6 +96,13 @@ msgstr "{label} — すでにこのプロジェクトにあります"
 msgid "{modelName} can't read images. Switch to a model that can, or remove the image."
 msgstr "{modelName} は画像を読み取れません。画像に対応したモデルに切り替えるか、画像を削除してください。"
 
+#. js-lingui:icu=%7BnotSynced%2C+plural%2C+one+%7B%23+item+was+not+synced.%7D+other+%7B%23+items+were+not+synced.%7D%7D&pluralize_on=notSynced
+#: src/integrations/alpha/alpha-sync-card.tsx
+msgid "# item was not synced."
+msgid_plural "# items were not synced."
+msgstr[0] ""
+msgstr[1] ""
+
 #. js-lingui:icu=%7Brows%2C+plural%2C+one+%7BThis+file+contains+%23+row+exported+by+%7BimportSourceEmail%7D+on+%7BimportExportedAt%7D.%7D+other+%7BThis+file+contains+%23+rows+exported+by+%7BimportSourceEmail%7D+on+%7BimportExportedAt%7D.%7D%7D&pluralize_on=rows
 #: src/settings/preferences.tsx
 msgid "This file contains # row exported by {importSourceEmail} on {importExportedAt}."
@@ -324,6 +331,63 @@ msgstr "詳細設定（JSON）"
 #: src/search/palette/entity-meta.ts
 msgid "Agents"
 msgstr "エージェント"
+
+#: src/integrations/alpha/alpha-sync-card.tsx
+msgid "AI Potluck"
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck asked to slow down."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck closed the connection."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck did not accept the sign-in. Try connecting again."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck did not return an authorization code."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck had a problem on its side."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck refused a request from this app."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck refused this device's access."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck sent more today than this device takes in a day. The rest arrives tomorrow."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck sent something this version can't read."
+msgstr ""
+
+#: src/integrations/alpha/alpha-sync-card.tsx
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck signed this device out. Reconnect to keep syncing."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck took too long to answer."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck's sign-in settings could not be found."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "AI Potluck's sign-in settings point at another site, so connecting stopped."
+msgstr ""
 
 #: src/components/chat/error-message.tsx
 msgid "AI usage limit reached"
@@ -581,6 +645,10 @@ msgstr "続行すると、<0>利用規約</0>と<1>プライバシーポリシ�
 #: src/widgets/connect-integration/widget.tsx
 msgid "Calendar"
 msgstr "カレンダー"
+
+#: src/integrations/alpha/error-messages.ts
+msgid "Can't reach AI Potluck. Check your connection."
+msgstr ""
 
 #: src/components/app-error-screen.tsx
 #: src/components/approve-device-dialog.tsx
@@ -894,6 +962,10 @@ msgstr "{providerName} を接続"
 msgid "Connect a remote agent that speaks the Agent Client Protocol."
 msgstr "Agent Client Protocol に対応したリモートエージェントを接続します。"
 
+#: src/integrations/alpha/alpha-sync-card.tsx
+msgid "Connect AI Potluck"
+msgstr ""
+
 #: src/settings/connections/use-integrations-controller.tsx
 msgid "Connect Google"
 msgstr "Google を接続"
@@ -931,6 +1003,14 @@ msgstr "{connectedProviderName} メールに接続済み"
 #: src/widgets/connect-integration/widget.tsx
 msgid "Connected to {connectedProviderName} Email and Calendar"
 msgstr "{connectedProviderName} メールとカレンダーに接続済み"
+
+#: src/integrations/alpha/alpha-sync-card.tsx
+msgid "Connected to {host}. Last synced {lastSynced}."
+msgstr ""
+
+#: src/integrations/alpha/alpha-sync-card.tsx
+msgid "Connected to {host}. Waiting for the first sync…"
+msgstr ""
 
 #: src/settings/connections/integration-detail.tsx
 msgid "Connected to {integrationName}"
@@ -1367,6 +1447,10 @@ msgstr "チャットを削除"
 msgid "Delete data from device"
 msgstr "デバイスからデータを削除"
 
+#: src/components/delete-chat-dialog.tsx
+msgid "Delete from Both"
+msgstr ""
+
 #: src/settings/models/index.tsx
 msgid "Delete Model"
 msgstr "モデルを削除"
@@ -1391,6 +1475,10 @@ msgstr "スキルを削除"
 #: src/components/ui/chat-nav-button.tsx
 msgid "Delete the thread?"
 msgstr "スレッドを削除しますか？"
+
+#: src/components/delete-chat-dialog.tsx
+msgid "Delete this chat from Thunderbolt and AI Potluck?"
+msgstr ""
 
 #: src/components/delete-chat-dialog.tsx
 msgid "Delete this chat?"
@@ -1532,6 +1620,7 @@ msgid "Discard"
 msgstr "破棄"
 
 #: src/components/connect-provider-button.tsx
+#: src/integrations/alpha/alpha-sync-card.tsx
 #: src/settings/connections/integration-detail.tsx
 msgid "Disconnect"
 msgstr "接続を解除"
@@ -2915,6 +3004,10 @@ msgstr "許可が必要です"
 msgid "Personalization"
 msgstr "パーソナライズ"
 
+#: src/integrations/alpha/error-messages.ts
+msgid "Pick a model in Settings before chats can arrive from AI Potluck."
+msgstr ""
+
 #: src/components/chat/chat-skills-bar.tsx
 msgid "Pin limit reached ({maxPinnedSkills}). Unpin one first."
 msgstr "ピン留めの上限（{maxPinnedSkills}）に達しました。先にどれかのピン留めを解除してください。"
@@ -3048,6 +3141,10 @@ msgstr "最近のチャット"
 msgid "Recent Projects"
 msgstr "最近のプロジェクト"
 
+#: src/integrations/alpha/alpha-sync-card.tsx
+msgid "Reconnect"
+msgstr ""
+
 #: src/hooks/use-sync-setup.ts
 msgid "Recovery failed"
 msgstr "復元に失敗しました"
@@ -3091,6 +3188,10 @@ msgstr "このデバイスからすべてのチャット、設定、キャッシ
 #: src/projects/move-chat-to-project-dialog.tsx
 msgid "Remove from project"
 msgstr "プロジェクトから削除"
+
+#: src/components/delete-chat-dialog.tsx
+msgid "Remove from Thunderbolt only"
+msgstr ""
 
 #: src/projects/emoji-picker.tsx
 msgid "Remove icon"
@@ -3200,6 +3301,7 @@ msgstr "データを取得中…"
 #: src/components/sidebar-footer.tsx
 #: src/components/update-notification.tsx
 #: src/components/upgrade-required.tsx
+#: src/integrations/alpha/alpha-sync-card.tsx
 msgid "Retry"
 msgstr "再試行"
 
@@ -3720,6 +3822,10 @@ msgstr "霧雪"
 msgid "Something went wrong"
 msgstr "問題が発生しました"
 
+#: src/integrations/alpha/error-messages.ts
+msgid "Something went wrong while syncing."
+msgstr ""
+
 #: src/components/chat/error-message.tsx
 #: src/components/magic-link-verify.tsx
 #: src/components/sign-in/sign-in-email-step.tsx
@@ -3730,6 +3836,10 @@ msgstr "問題が発生しました。もう一度お試しください。"
 #: src/components/chat/error-message.tsx
 msgid "Something went wrong. Retrying ({retryCount}/{maxRetries})…"
 msgstr "問題が発生しました。再試行しています（{retryCount}/{maxRetries}）…"
+
+#: src/integrations/alpha/alpha-sync-card.tsx
+msgid "Source"
+msgstr ""
 
 #: src/voice/ui/voice-mode-composer.tsx
 msgid "Speaking"
@@ -3808,6 +3918,14 @@ msgstr "{suggestedLanguageLabel} に切り替える"
 #: src/projects/emoji-catalog.ts
 msgid "Symbols"
 msgstr "記号"
+
+#: src/integrations/alpha/alpha-sync-card.tsx
+msgid "Sync is paused for now."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "Sync is turned off on AI Potluck."
+msgstr ""
 
 #: src/settings/preferences.tsx
 msgid "Sync This Device With Cloud"
@@ -3949,6 +4067,14 @@ msgstr ""
 msgid "The CLI will be signed out and must sign in again before it can use your Thunderbolt account."
 msgstr ""
 
+#: src/integrations/alpha/error-messages.ts
+msgid "The connection to AI Potluck went quiet."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "The connection was declined on AI Potluck."
+msgstr ""
+
 #: src/services/revoke-failure.ts
 msgid "The device lost access, but your account key was not replaced, so it can still read your data — the recovery keys the server offered could not be verified against this device. This can indicate tampering."
 msgstr ""
@@ -4023,13 +4149,25 @@ msgstr "テーマ"
 msgid "Thinking"
 msgstr "思考中"
 
+#: src/integrations/alpha/error-messages.ts
+msgid "This account isn't allowed to sync with AI Potluck."
+msgstr ""
+
 #: src/components/ui/chat-nav-button.tsx
 msgid "This action cannot be undone. This will permanently delete this chat and all its messages."
 msgstr "この操作は取り消せません。このチャットとすべてのメッセージが完全に削除されます。"
 
+#: src/integrations/alpha/error-messages.ts
+msgid "This build has no AI Potluck server configured."
+msgstr ""
+
 #: src/components/storage-unavailable-screen.tsx
 msgid "This can happen in private windows or when site data is blocked. Enable storage for this site and reload."
 msgstr "プライベートウィンドウや、サイトデータがブロックされている場合に発生することがあります。このサイトのストレージを有効にして再読み込みしてください。"
+
+#: src/components/delete-chat-dialog.tsx
+msgid "This chat is synced with AI Potluck. Deleting it removes it from both. To keep it on AI Potluck, remove it from Thunderbolt only."
+msgstr ""
 
 #: src/components/share-debug-transcript/share-debug-transcript-dialog.tsx
 #~ msgid "This chat session, including the messages you sent and the responses from agent, the data inputs and outputs of any tools used, errors, and timestamps."
@@ -4046,6 +4184,10 @@ msgstr "このチャットは {agentName} を使用していますが、この�
 #: src/lib/otp-error-messages.ts
 msgid "This code has expired. Please request a new one."
 msgstr "このコードは有効期限が切れています。新しいコードをリクエストしてください。"
+
+#: src/integrations/alpha/error-messages.ts
+msgid "This connection was not started from this browser. Try connecting again."
+msgstr ""
 
 #: src/components/chat/error-message.tsx
 msgid "This conversation is too large for the model's context window. Start a new chat, remove some attachments, or switch to a model with a larger context window."
@@ -4077,6 +4219,10 @@ msgstr ""
 
 #: src/components/device-revoked.tsx
 msgid "This device was signed out remotely and its local data has been cleared."
+msgstr ""
+
+#: src/integrations/alpha/error-messages.ts
+msgid "This device's chats could not be loaded, so nothing was synced."
 msgstr ""
 
 #: src/settings/preferences.tsx
@@ -4350,6 +4496,10 @@ msgstr "再試行"
 #: src/components/chat/image-support-notice.tsx
 msgid "Try anyway"
 msgstr "このまま試す"
+
+#: src/integrations/alpha/alpha-sync-card.tsx
+msgid "Trying again shortly."
+msgstr ""
 
 #: src/settings/voice.tsx
 msgid "TTS model"
@@ -4710,6 +4860,14 @@ msgstr "チャット内のリンクを開く場所"
 #: src/components/onboarding/onboarding-language-step.tsx
 msgid "Which language do you prefer?"
 msgstr "どの言語をご希望ですか？"
+
+#: src/integrations/alpha/alpha-sync-card.tsx
+#~ msgid "While Thunderbolt is open in this browser, all your AI Potluck chats are copied here. Chats you start after connecting are uploaded to AI Potluck, including chats started on your other devices: connecting this browser is enough for all of them. Uploaded chats leave Thunderbolt's end-to-end encryption and are stored by AI Potluck. Private chats are never uploaded. Deleting a chat here deletes it on AI Potluck only if it was started in Thunderbolt. Signing out of Thunderbolt disconnects; chats already on AI Potluck stay there."
+#~ msgstr ""
+
+#: src/integrations/alpha/alpha-sync-card.tsx
+msgid "While Thunderbolt is open in this browser, all your AI Potluck chats are copied here. Chats you start after connecting are uploaded to AI Potluck, including chats started on your other devices: connecting this browser is enough for all of them. Uploaded chats leave Thunderbolt's end-to-end encryption and are stored by AI Potluck. Private chats are never uploaded. Deleting a synced chat asks whether to delete it on AI Potluck too; deleting all chats at once deletes on AI Potluck only the ones started in Thunderbolt. Signing out of Thunderbolt disconnects; chats already on AI Potluck stay there."
+msgstr ""
 
 #: src/components/share-debug-transcript/share-debug-transcript-dialog.tsx
 msgid "Who can read it?"

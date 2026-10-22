@@ -6,6 +6,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'bun:test'
 import { getClock } from '@/testing-library'
 import { ExternalLinkDialogProvider } from './markdown-utils'
+import { mathCaps } from './math-cap'
 import { MemoizedMarkdown } from './memoized-markdown'
 
 // Warm the lazily-loaded math chunk so the component's dynamic `import()` resolves
@@ -202,5 +203,31 @@ describe('MemoizedMarkdown — LaTeX', () => {
     const annotation = container.querySelector('.katex-mathml annotation[encoding="application/x-tex"]')
     expect(annotation?.textContent).toBe('E = mc^2')
     expect(container.querySelector('.katex-mathml math')?.getAttribute('display')).toBe('block')
+  })
+})
+
+describe('MemoizedMarkdown — math caps', () => {
+  afterEach(cleanup)
+
+  const annotations = (container: HTMLElement) =>
+    [...container.querySelectorAll('.katex-mathml annotation[encoding="application/x-tex"]')].map((a) => a.textContent)
+
+  it('shows an expression longer than the cap as code, with its text, instead of handing it to KaTeX', async () => {
+    const huge = `${'x+'.repeat(mathCaps.expressionChars)}x`
+    const { container } = renderMarkdown(`Small $a^2$ first.\n\n$$\n${huge}\n$$`)
+    await flushLazyLoad()
+    expect(annotations(container)).toEqual(['a^2'])
+    expect([...container.querySelectorAll('code')].some((c) => c.textContent?.includes(huge))).toBe(true)
+  })
+
+  it('stops rendering math as KaTeX once a message has spent its allowance, across its blocks', async () => {
+    const expression = (letter: string) => letter.repeat(mathCaps.expressionChars - mathCaps.expressionCost)
+    // Each block's expression costs exactly expressionChars, so the message's allowance runs out
+    // after messageChars / expressionChars blocks; the rest show as code.
+    const letters = ['a', 'b', 'c', 'd', 'e', 'f']
+    const fit = Math.floor(mathCaps.messageChars / mathCaps.expressionChars)
+    const { container } = renderMarkdown(letters.map((l) => `$$\n${expression(l)}\n$$`).join('\n\n'))
+    await flushLazyLoad()
+    expect(annotations(container).map((a) => a?.[0])).toEqual(letters.slice(0, fit))
   })
 })

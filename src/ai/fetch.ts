@@ -39,8 +39,10 @@ import { isVoiceModeActive, voiceModeSystemNote } from '@/voice/voice-mode'
 import { collectAskEntriesFromCache, formatAskResponsesNote } from '@/widgets/ask/lib'
 import { getDb } from '@/db/database'
 import { getLocalSetting } from '@/stores/local-settings-store'
+import { resolveAbsoluteBackendUrl } from '@/lib/url-utils'
 import { hydrateAttachmentsAsFileParts } from '@/lib/attachments'
 import { hydrateQuotesAsText } from '@/lib/quotes'
+import { quoteSyncedTurns } from '@/integrations/alpha/provenance'
 import { appVersionHeader } from '@/lib/app-version'
 import { handleAppVersionUnsupported } from '@/lib/app-version-unsupported'
 import { handleSessionRejected } from '@/lib/session-rejected'
@@ -351,7 +353,8 @@ export const resolveManagedAnthropicConnection = (
   )
   const sdkPath = client === 'ai-sdk' ? '/v1' : ''
   return {
-    baseURL: `${connection.baseURL.replace(/\/$/, '')}/chat${sdkPath}`,
+    // The Anthropic SDKs build request URLs with `new URL`, which rejects the relative `/v1` default.
+    baseURL: `${resolveAbsoluteBackendUrl(connection.baseURL)}/chat${sdkPath}`,
     apiKey: connection.apiKey,
     fetch: managedFetch,
   }
@@ -575,6 +578,7 @@ export const prepareAiRequestConfig = async ({
       projectName: projectContext.prompt.name,
       threadIds: projectContext.siblingThreadIds,
       titleByThreadId: projectContext.titleByThreadId,
+      syncedThreadIds: projectContext.syncedThreadIds,
     })
   }
   // Mini App context is a tool for the same reason cross-chat recall is: the
@@ -1013,7 +1017,7 @@ export const aiFetchStreamingResponse = async ({
         telemetry?.startPhase('attachment_hydration')
         const historyMessages = embeddedSurface === 'mini-app' ? supersedeAppContextResults(messages) : messages
         const baseMessages = await convertToModelMessages(
-          hydrateQuotesAsText(await hydrateAttachmentsAsFileParts(historyMessages)),
+          hydrateQuotesAsText(await hydrateAttachmentsAsFileParts(quoteSyncedTurns(historyMessages))),
         )
         telemetry?.endPhase('attachment_hydration')
         let currentInput = assembleBuiltInModelInput(stableSystemPrompt, baseMessages, volatileSystemNotes)

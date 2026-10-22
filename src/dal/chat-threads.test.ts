@@ -12,6 +12,7 @@ import {
   clearAcpSessionIdsForAgent,
   deleteAllChatThreads,
   deleteChatThread,
+  deleteChatThreadIfEmpty,
   getAllChatThreads,
   getChatThread,
   getContextSizeForThread,
@@ -526,6 +527,40 @@ describe('Chat Threads DAL', () => {
 
       const result = await getContextSizeForThread(getDb(), threadId).get()
       expect(result?.contextSize).toBe(1500)
+    })
+  })
+
+  describe('deleteChatThreadIfEmpty', () => {
+    it('deletes a thread with no live messages, and keeps one that still has a message', async () => {
+      const db = getDb()
+      const emptyId = uuidv7()
+      const keptId = uuidv7()
+      await db.insert(chatThreadsTable).values([
+        { id: emptyId, title: 'Empty', isEncrypted: 0 },
+        { id: keptId, title: 'Kept', isEncrypted: 0 },
+      ])
+      await db.insert(chatMessagesTable).values([
+        { id: uuidv7(), chatThreadId: emptyId, role: 'user', content: 'gone', deletedAt: nowIso() },
+        { id: uuidv7(), chatThreadId: keptId, role: 'user', content: 'still here' },
+      ])
+
+      expect(await deleteChatThreadIfEmpty(db, emptyId)).toBe(true)
+      expect(await deleteChatThreadIfEmpty(db, keptId)).toBe(false)
+
+      const threads = await getAllChatThreads(db)
+      expect(threads.map((t) => t.id)).toEqual([keptId])
+    })
+
+    it('returns false for a thread id that does not exist, since nothing was deleted', async () => {
+      expect(await deleteChatThreadIfEmpty(getDb(), uuidv7())).toBe(false)
+    })
+
+    it('returns false for a thread that was already deleted, since this call deleted nothing', async () => {
+      const db = getDb()
+      const id = uuidv7()
+      await db.insert(chatThreadsTable).values({ id, title: 'Gone', isEncrypted: 0 })
+      await deleteChatThread(db, id)
+      expect(await deleteChatThreadIfEmpty(db, id)).toBe(false)
     })
   })
 

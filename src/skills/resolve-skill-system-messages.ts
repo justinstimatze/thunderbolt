@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { selectMinimalMode, useConfigStore } from '@/api/config-store'
+import { readProvenance } from '@/integrations/alpha/provenance'
 import type { ThunderboltUIMessage } from '@/types'
 import { parseSkillTokens } from './parse-skill-tokens'
 
@@ -43,13 +44,18 @@ export const resolveSkillTokenInstructions = (
 /**
  * Walk `messages` from the end and return the concatenated text of the most
  * recent `user` message (its `text` parts joined by `\n`). Returns the empty
- * string if there is no user message.
+ * string if there is no user message, or if that message was synced from
+ * AI Potluck (`metadata.alpha`): the person did not type it here, so it never
+ * picks their skills or the web-search intent.
  */
 export const extractLastUserText = (messages: readonly ThunderboltUIMessage[]): string => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
     if (message?.role !== 'user') {
       continue
+    }
+    if (readProvenance(message.metadata)) {
+      return ''
     }
     return message.parts
       .filter((p): p is { type: 'text'; text: string } => p.type === 'text')

@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { useLocalSettingsStore } from '@/stores/local-settings-store'
 import { createWebToolBudget } from '@/ai/web-tool-budget'
 import { createModel as insertModel } from '@/dal/models'
 import { updateSettings } from '@/dal/settings'
@@ -642,6 +643,17 @@ describe('createModel', () => {
 })
 
 describe('resolveManagedAnthropicConnection', () => {
+  let originalPageUrl: string
+
+  beforeEach(() => {
+    originalPageUrl = window.location.href
+    window.location.href = 'https://app.example.com/chats/new'
+  })
+
+  afterEach(() => {
+    window.location.href = originalPageUrl
+  })
+
   it.each(['anthropic-sdk', 'ai-sdk'] as const)(
     'targets the native backend route for %s and replaces the SDK key with app authentication',
     async (client) => {
@@ -675,6 +687,19 @@ describe('resolveManagedAnthropicConnection', () => {
       }
     },
   )
+
+  it('resolves a relative cloud URL against the page, so the SDK can build request URLs', () => {
+    const original = useLocalSettingsStore.getState().cloudUrl
+    useLocalSettingsStore.setState({ cloudUrl: '/v1' })
+    try {
+      const model = { provider: 'thunderbolt' } as Model
+      const connection = resolveManagedAnthropicConnection(model, () => stubProxyFetch, 'ai-sdk')
+      expect(connection.baseURL).toBe('https://app.example.com/v1/chat/v1')
+      expect(() => new URL(`${connection.baseURL}/messages`)).not.toThrow()
+    } finally {
+      useLocalSettingsStore.setState({ cloudUrl: original })
+    }
+  })
 })
 
 // The `thunderbolt` provider fetch POSTs directly to our backend, bypassing the

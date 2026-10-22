@@ -16,6 +16,10 @@ interface ImportMetaEnv {
   readonly VITE_ORG_ESCROW_PUBLIC_KEY?: string
   readonly VITE_GOOGLE_BASE_URL?: string
   readonly VITE_MICROSOFT_BASE_URL?: string
+  /** The AI Potluck origin the conversation bridge syncs with. Unset: the bridge is off. */
+  readonly VITE_ALPHA_ORIGIN?: string
+  /** The OAuth client id that AI Potluck deployment registered for this build. */
+  readonly VITE_ALPHA_CLIENT_ID?: string
 }
 
 // .po catalogs are compiled to JS message objects by @lingui/vite-plugin.

@@ -74,4 +74,69 @@ describe('DeleteChatDialog', () => {
 
     expect(onCancel).toHaveBeenCalledTimes(1)
   })
+
+  describe('a chat synced with AI Potluck', () => {
+    const openWith = async (checkSynced: () => Promise<boolean>) => {
+      const ref = createRef<DeleteChatDialogRef>()
+      const onConfirm = mock(() => {})
+      const onRemoveLocalOnly = mock(() => {})
+      render(
+        <DeleteChatDialog
+          ref={ref}
+          onConfirm={onConfirm}
+          checkSynced={checkSynced}
+          onRemoveLocalOnly={onRemoveLocalOnly}
+        />,
+      )
+      await act(async () => {
+        ref.current?.open()
+        await getClock().runAllAsync()
+      })
+      return { onConfirm, onRemoveLocalOnly }
+    }
+
+    it('names both places and offers removing it from Thunderbolt only', async () => {
+      const { onConfirm, onRemoveLocalOnly } = await openWith(async () => true)
+
+      expect(
+        screen.getByRole('alertdialog', { name: 'Delete this chat from Thunderbolt and AI Potluck?' }),
+      ).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Remove from Thunderbolt only' }))
+      expect(onRemoveLocalOnly).toHaveBeenCalledTimes(1)
+      expect(onConfirm).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete from Both' }))
+      expect(onConfirm).toHaveBeenCalledTimes(1)
+      expect(onRemoveLocalOnly).toHaveBeenCalledTimes(1)
+    })
+
+    it('offers the same two choices in the mobile sheet', async () => {
+      forceMobileViewport()
+      await openWith(async () => true)
+
+      expect(
+        screen.getByRole('alertdialog', { name: 'Delete this chat from Thunderbolt and AI Potluck?' }),
+      ).toHaveAttribute('data-slot', 'drawer-content')
+      expect(screen.getByRole('button', { name: 'Remove from Thunderbolt only' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Delete from Both' })).toBeInTheDocument()
+    })
+
+    it('shows the plain prompt with no second choice when the chat is not synced', async () => {
+      await openWith(async () => false)
+
+      expect(screen.getByRole('alertdialog', { name: 'Delete this chat?' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Delete Chat' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Remove from Thunderbolt only' })).not.toBeInTheDocument()
+    })
+
+    it('falls back to the plain prompt when the sync check fails, rather than not opening', async () => {
+      await openWith(async () => {
+        throw new Error('database closed')
+      })
+
+      expect(screen.getByRole('alertdialog', { name: 'Delete this chat?' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Remove from Thunderbolt only' })).not.toBeInTheDocument()
+    })
+  })
 })

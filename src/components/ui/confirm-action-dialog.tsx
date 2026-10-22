@@ -32,6 +32,9 @@ type ConfirmActionDialogProps = {
    *  is in flight, so a double-tap can't fire `onConfirm` twice. */
   isPending?: boolean
   onConfirm: () => void
+  /** A second, non-destructive way to go ahead, shown between Cancel and the confirm button. Both this and `onSecondary` are needed for it to show. */
+  secondaryLabel?: string
+  onSecondary?: () => void
   /** Fires on every non-confirm dismissal: Cancel, Escape, and backdrop. */
   onCancel: () => void
 }
@@ -52,6 +55,8 @@ export const ConfirmActionDialog = ({
   confirmDisabled = false,
   isPending = false,
   onConfirm,
+  secondaryLabel,
+  onSecondary,
   onCancel,
 }: ConfirmActionDialogProps) => {
   const { t } = useLingui()
@@ -60,6 +65,12 @@ export const ConfirmActionDialog = ({
   // evaluated at module scope where `t` would freeze at the boot locale.
   const cancelText = cancelLabel ?? t`Cancel`
   const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const secondaryButton =
+    secondaryLabel && onSecondary ? (
+      <Button variant="outline" disabled={isPending} onClick={onSecondary}>
+        {secondaryLabel}
+      </Button>
+    ) : null
 
   if (isMobile) {
     return (
@@ -79,6 +90,7 @@ export const ConfirmActionDialog = ({
           <Button ref={cancelButtonRef} variant="outline" onClick={onCancel}>
             {cancelText}
           </Button>
+          {secondaryButton}
           <Button variant={confirmVariant} isLoading={isPending} disabled={confirmDisabled} onClick={onConfirm}>
             {confirmLabel}
           </Button>
@@ -98,6 +110,7 @@ export const ConfirmActionDialog = ({
           {/* Radix's Cancel closes the dialog itself; onCancel arrives once
               via onOpenChange(false), so no onClick here. */}
           <AlertDialogCancel>{cancelText}</AlertDialogCancel>
+          {secondaryButton}
           <Button variant={confirmVariant} isLoading={isPending} disabled={confirmDisabled} onClick={onConfirm}>
             {confirmLabel}
           </Button>

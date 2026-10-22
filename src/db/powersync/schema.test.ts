@@ -26,3 +26,15 @@ describe('MCP tables are local-only (not synced)', () => {
     expect(localOnlyOption(drizzleSchema.mcp_secrets)).toBe(true)
   })
 })
+
+/** The AI Potluck bridge's tokens and id map belong to one device and must never reach the sync server. */
+describe('AI Potluck bridge tables are local-only (not synced)', () => {
+  it('never syncs the bridge tokens or id map', () => {
+    const localOnlyOption = (entry: unknown) => (entry as { options?: { localOnly?: boolean } }).options?.localOnly
+
+    expect(powersyncTableNames).not.toContain('alpha_sync_secrets')
+    expect(powersyncTableNames).not.toContain('alpha_sync_state')
+    expect(localOnlyOption(drizzleSchema.alpha_sync_secrets)).toBe(true)
+    expect(localOnlyOption(drizzleSchema.alpha_sync_state)).toBe(true)
+  })
+})

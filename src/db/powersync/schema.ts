@@ -51,6 +51,15 @@ export const localOnlyTables = {
     tableDefinition: tables.agentsSecretsTable,
     options: { localOnly: true },
   } satisfies DrizzleTableWithPowerSyncOptions,
+  // The AI Potluck bridge: its tokens, and the per-device id map and cursor.
+  alpha_sync_secrets: {
+    tableDefinition: tables.alphaSyncSecretsTable,
+    options: { localOnly: true },
+  } satisfies DrizzleTableWithPowerSyncOptions,
+  alpha_sync_state: {
+    tableDefinition: tables.alphaSyncStateTable,
+    options: { localOnly: true },
+  } satisfies DrizzleTableWithPowerSyncOptions,
 }
 
 /**

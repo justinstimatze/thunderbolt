@@ -2,6 +2,9 @@
 
 **AI You Control: Choose your models. Own your data. Eliminate vendor lock-in.**
 
+> [!NOTE]
+> This is an unofficial fork of Thunderbolt 0.1.145, made by Justin Stimatze (AI Potluck). It is not affiliated with the Thunderbolt team. It adds a proof-of-concept live sync with AI Potluck's chat app; see [`src/integrations/alpha/README.md`](src/integrations/alpha/README.md).
+
 ![Thunderbolt Main Dashboard](./docs/screenshots/main.png)
 
 > [!IMPORTANT]
@@ -33,7 +36,8 @@ For self-hosting with Docker Compose, Kubernetes, or Pulumi on AWS, see [`docs/s
 
 Found a bug? Have an idea?
 
-- We're actively working on our docs, community, and roadmap. For now, the best way to get in touch is to [File an issue](https://github.com/thunderbird/thunderbolt/issues).
+- For this fork and its AI Potluck sync, email justin@justinstimatze.com. Issues are turned off on the fork.
+- For Thunderbolt itself: we're actively working on our docs, community, and roadmap. For now, the best way to get in touch is to [File an issue](https://github.com/thunderbird/thunderbolt/issues).
 
 ## Contributing
 

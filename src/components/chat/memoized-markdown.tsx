@@ -5,17 +5,19 @@
 import { type CSSProperties, memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
+import type rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
 import type { PluggableList } from 'unified'
 
 import { blockHasMath, type IncrementalMarkdownState, parseMarkdownIntoBlocksIncremental } from './markdown-blocks'
 import { markdownComponents } from './markdown-utils'
+import { katexOptions, mathAllowances, mathLengths, remarkCapMath } from './math-cap'
 
 // remark-gfm is small and used by every block, so it stays statically imported.
 // remark-math + rehype-katex + the KaTeX stylesheet (~70KB gzip) are lazy-loaded
 // only when a block actually contains math — see `loadMathPlugins`.
 
-type MathPlugins = { remark: PluggableList[number]; rehype: PluggableList[number] }
+type MathPlugins = { remark: PluggableList[number]; rehype: typeof rehypeKatex }
 
 // remark-math + rehype-katex + the KaTeX stylesheet make up their own chunk,
 // loaded once (module-level cached promise) and reused across every block, and
@@ -75,11 +77,25 @@ const useMathPlugins = (enabled: boolean): MathPlugins | null => {
 }
 
 const MemoizedMarkdownBlock = memo(
-  ({ content, isCode, components }: { content: string; isCode: boolean; components: Components }) => {
-    const hasMath = useMemo(() => !isCode && blockHasMath(content), [content, isCode])
+  ({
+    content,
+    hasMath,
+    mathAllowance,
+    components,
+  }: {
+    content: string
+    hasMath: boolean
+    /** Math characters this block may still hand KaTeX; see `mathAllowances`. */
+    mathAllowance: number
+    components: Components
+  }) => {
     const mathPlugins = useMathPlugins(hasMath)
-    const remarkPlugins: PluggableList = mathPlugins ? [remarkGfm, mathPlugins.remark] : [remarkGfm]
-    const rehypePlugins: PluggableList = mathPlugins ? [mathPlugins.rehype] : []
+    // KaTeX's cost grows with what it is given, so math past the caps, or that defines a macro,
+    // renders as code instead, and KaTeX itself runs with bounded expansion and sizes.
+    const remarkPlugins: PluggableList = mathPlugins
+      ? [remarkGfm, mathPlugins.remark, [remarkCapMath, { allowance: mathAllowance }]]
+      : [remarkGfm]
+    const rehypePlugins: PluggableList = mathPlugins ? [[mathPlugins.rehype, katexOptions]] : []
     return (
       <div className="overflow-x-scroll">
         <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components}>
@@ -88,7 +104,11 @@ const MemoizedMarkdownBlock = memo(
       </div>
     )
   },
-  (prevProps, nextProps) => prevProps.content === nextProps.content && prevProps.components === nextProps.components,
+  (prevProps, nextProps) =>
+    prevProps.content === nextProps.content &&
+    prevProps.hasMath === nextProps.hasMath &&
+    prevProps.mathAllowance === nextProps.mathAllowance &&
+    prevProps.components === nextProps.components,
 )
 
 MemoizedMarkdownBlock.displayName = 'MemoizedMarkdownBlock'
@@ -111,8 +131,18 @@ export const MemoizedMarkdown = memo(({ content, id, components }: MemoizedMarkd
     // state isn't a clean prefix of the next content, so `parseMarkdownIntoBlocksIncremental`
     // just falls back to one full re-parse — never wrong output, only a one-render cost.
     parseStateRef.current = state
-    return blocks
+    return blocks.map((block) => ({ ...block, hasMath: !block.isCode && blockHasMath(block.content) }))
   }, [content])
+  // The message's math allowance, spent block by block in order. Until the math plugins load, no
+  // block renders math, and none is allowed any.
+  const mathPlugins = useMathPlugins(blocks.some((block) => block.hasMath))
+  const allowances = useMemo(
+    () =>
+      mathPlugins
+        ? mathAllowances(blocks, (blockContent) => mathLengths(blockContent, mathPlugins.remark))
+        : blocks.map(() => 0),
+    [blocks, mathPlugins],
+  )
   const resolvedComponents = components ?? markdownComponents
 
   return (
@@ -167,7 +197,8 @@ export const MemoizedMarkdown = memo(({ content, id, components }: MemoizedMarkd
       {blocks.map((block, index) => (
         <MemoizedMarkdownBlock
           content={block.content}
-          isCode={block.isCode}
+          hasMath={block.hasMath}
+          mathAllowance={allowances[index]}
           components={resolvedComponents}
           key={`${id}-block_${index}`}
         />

@@ -34,6 +34,7 @@ import { useViewportLock } from '@/hooks/use-viewport-lock'
 import { useDeviceSessionBinding } from '@/hooks/use-device-session-binding'
 import { useMcpSync } from '@/hooks/use-mcp-sync'
 import { useBootstrapSystemAgents } from '@/hooks/use-bootstrap-system-agents'
+import { alphaCallbackPath, useAlphaSync } from '@/integrations/alpha'
 import { PostHogProvider } from '@/lib/posthog'
 import { ThemeProvider } from '@/lib/theme-provider'
 import { AppErrorScreen } from './components/app-error-screen'
@@ -114,6 +115,10 @@ const DeviceApproval = lazy(routeChunkLoaders.deviceApproval)
 // deliberately-cold chunk (outside routeChunkLoaders) — lazy but not warmed.
 const VoiceSettingsPage = lazy(() => import('@/settings/voice'))
 
+// AI Potluck's sign-in callback is a deliberately-cold chunk too: it is only reached on the way
+// back from that sign-in, so it is never warmed.
+const AlphaOAuthCallback = lazy(() => import('@/integrations/alpha/alpha-oauth-callback'))
+
 // Lazily import SSO components so non-enterprise deployments don't pay
 // for the extra bundle size and attack surface.
 const SsoRedirect = lazy(() => import('@/components/sso-redirect'))
@@ -139,6 +144,7 @@ const queryClient = new QueryClient()
 const AppContent = ({ initData }: { initData: InitData }) => {
   useDeviceSessionBinding()
   useMcpSync()
+  useAlphaSync()
   useBootstrapSystemAgents()
   useAppLanguage()
   useUnitDefaults()
@@ -192,6 +198,7 @@ const AppRoutes = ({ initData }: { initData: InitData }) => {
       <Routes>
         {/* Auth flow routes - NO guards (must work during auth) */}
         <Route path="/oauth/callback" element={<OAuthCallback />} />
+        <Route path={alphaCallbackPath} element={<AlphaOAuthCallback />} />
         <Route path="/auth/verify" element={<MagicLinkVerify />} />
         <Route path="/device" element={<DeviceApproval />} />
 

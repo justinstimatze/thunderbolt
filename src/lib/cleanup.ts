@@ -37,6 +37,15 @@ export const clearLocalData = async (options?: ClearLocalDataOptions): Promise<v
 
   clearIdentityScopedMemory()
 
+  // Revoke the AI Potluck grant while the database still holds its tokens. Loaded on demand so the
+  // bridge stays out of the main bundle; it never throws.
+  try {
+    const { teardownAlphaSync } = await import('@/integrations/alpha/teardown')
+    await teardownAlphaSync()
+  } catch (error) {
+    console.error('[clearLocalData] Failed to disconnect AI Potluck:', error)
+  }
+
   // Tear down every warm ACP connection first so no agent transport survives
   // across user identities (sign-out, account deletion, device revocation all
   // funnel through here).

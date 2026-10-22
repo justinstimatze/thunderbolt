@@ -5,6 +5,7 @@
 import { defaultDeliveryMode, getTransformer } from '@/files/transformers'
 import { blobToBase64, isAttachmentPart } from '@/lib/attachments'
 import { getAttachment, type StoredFile } from '@/lib/file-blob-storage'
+import { quoteSyncedTurns } from '@/integrations/alpha/provenance'
 import { hydrateQuotesAsText } from '@/lib/quotes'
 import type { ThunderboltUIMessage } from '@/types'
 import type { ImageContent } from '@earendil-works/pi-ai'
@@ -149,12 +150,16 @@ const coalesceTurns = (turns: readonly SeedTurn[]): SeedTurn[] =>
     return acc
   }, [])
 
-/** Prepare prior text history plus latest Pi-native prompt content. */
+/**
+ * Prepare prior text history plus latest Pi-native prompt content. Turns synced from AI Potluck
+ * reach the harness quoted behind a note (`quoteSyncedTurns`), since its tools run unconfirmed.
+ */
 export const prepareBuiltInConversation = async (
-  messages: ThunderboltUIMessage[],
+  rawMessages: ThunderboltUIMessage[],
   skillInstructions: string[] | undefined,
   deps: BuiltInConversationDeps = defaultDeps,
 ): Promise<PreparedBuiltInConversation> => {
+  const messages = quoteSyncedTurns(rawMessages)
   const lastUserIndex = messages.findLastIndex((message) => message.role === 'user')
   if (lastUserIndex === -1) {
     throw new Error('Built-in adapter: no user message in request body')

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import type { AnyDrizzleDatabase } from '../db/database-interface'
 import { isInsertConflictError } from '../lib/sqlite-errors'
 import { chatMessagesTable } from '../db/tables'
@@ -236,4 +236,150 @@ export const deleteChatMessageAndDescendants = async (db: AnyDrizzleDatabase, me
     .update(chatMessagesTable)
     .set({ ...clearNullableColumns(chatMessagesTable), deletedAt })
     .where(and(inArray(chatMessagesTable.id, idsToSoftDelete), isNull(chatMessagesTable.deletedAt)))
+}
+
+/**
+ * Saves messages under the parents the caller chose, in one transaction. For callers that place
+ * rows written elsewhere into an existing thread (an external sync), where "after the newest
+ * message" is not the right place.
+ *
+ * Insert-first like {@link saveMessagesWithContextUpdate}; a row that already exists gets only its
+ * mutable columns updated, so its place in the tree never changes, and a soft-deleted one is left
+ * deleted.
+ */
+export const saveChatMessagesWithParents = async (
+  db: AnyDrizzleDatabase,
+  threadId: string,
+  rows: { message: ThunderboltUIMessage; parentId: string | null }[],
+): Promise<void> => {
+  if (rows.length === 0) {
+    return
+  }
+  const dbChatMessages = rows.map(({ message, parentId }) =>
+    convertUIMessageToDbChatMessage(message, threadId, parentId),
+  )
+  await db.transaction(async (tx) => {
+    for (const msg of dbChatMessages) {
+      try {
+        await tx.insert(chatMessagesTable).values(msg)
+      } catch (err) {
+        if (!isInsertConflictError(err)) {
+          throw err
+        }
+        // Only a live row: content written back into a row deleted meanwhile would undo the delete.
+        await tx
+          .update(chatMessagesTable)
+          .set({ content: msg.content, parts: msg.parts, role: msg.role, metadata: msg.metadata })
+          .where(and(eq(chatMessagesTable.id, msg.id), isNull(chatMessagesTable.deletedAt)))
+      }
+    }
+  })
+}
+
+/**
+ * Brings back messages soft-deleted by {@link softDeleteChatMessages}, with their content and the
+ * parents the caller chose. For an external sync that removed a row because the other side dropped
+ * it, and is told later that it is back. A row that is live is left as it is.
+ */
+export const restoreChatMessages = async (
+  db: AnyDrizzleDatabase,
+  threadId: string,
+  rows: { message: ThunderboltUIMessage; parentId: string | null }[],
+): Promise<void> => {
+  if (rows.length === 0) {
+    return
+  }
+  await db.transaction(async (tx) => {
+    for (const { message, parentId } of rows) {
+      const { id, ...columns } = convertUIMessageToDbChatMessage(message, threadId, parentId)
+      await tx
+        .update(chatMessagesTable)
+        .set(columns)
+        .where(and(eq(chatMessagesTable.id, id), isNotNull(chatMessagesTable.deletedAt)))
+    }
+  })
+}
+
+/** Split ids into runs short enough for one `IN (…)` list. */
+const inListChunks = (ids: string[], size = 400): string[][] =>
+  Array.from({ length: Math.ceil(ids.length / size) }, (_, i) => ids.slice(i * size, (i + 1) * size))
+
+/**
+ * Soft deletes exactly these messages, without their descendants, the same way
+ * {@link deleteChatMessageAndDescendants} does: sets deletedAt and clears nullable columns.
+ * For callers that mirror a delete made elsewhere row by row (an external sync).
+ *
+ * A live reply to a deleted message is moved up to the nearest ancestor that stays, so a later
+ * delete-with-descendants from above still reaches it and the thread's tree stays connected.
+ *
+ * @param markers - Metadata to leave on a deleted row in place of its own, written in the same
+ *   transaction as the delete, so other devices can tell why it was deleted. Only rows this call
+ *   deletes get one.
+ */
+export const softDeleteChatMessages = async (
+  db: AnyDrizzleDatabase,
+  messageIds: string[],
+  markers: ReadonlyMap<string, UIMessageMetadata> = new Map(),
+): Promise<void> => {
+  if (messageIds.length === 0) {
+    return
+  }
+  await db.transaction(async (tx) => {
+    const doomed: { id: string; parentId: string | null }[] = []
+    for (const chunk of inListChunks(messageIds)) {
+      doomed.push(
+        ...(await tx
+          .select({ id: chatMessagesTable.id, parentId: chatMessagesTable.parentId })
+          .from(chatMessagesTable)
+          .where(and(inArray(chatMessagesTable.id, chunk), isNull(chatMessagesTable.deletedAt)))),
+      )
+    }
+    if (doomed.length === 0) {
+      return
+    }
+    const parentOf = new Map(doomed.map((m) => [m.id, m.parentId]))
+    const survivingAncestor = (id: string): string | null => {
+      let parent = parentOf.get(id) ?? null
+      const visited = new Set([id])
+      while (parent !== null && parentOf.has(parent) && !visited.has(parent)) {
+        visited.add(parent)
+        parent = parentOf.get(parent) ?? null
+      }
+      return parent !== null && parentOf.has(parent) ? null : parent
+    }
+    const ids = [...parentOf.keys()]
+    const children: { id: string; parentId: string }[] = []
+    for (const chunk of inListChunks(ids)) {
+      children.push(
+        ...((await tx
+          .select({ id: chatMessagesTable.id, parentId: chatMessagesTable.parentId })
+          .from(chatMessagesTable)
+          .where(and(inArray(chatMessagesTable.parentId, chunk), isNull(chatMessagesTable.deletedAt)))) as {
+          id: string
+          parentId: string
+        }[]),
+      )
+    }
+    for (const child of children) {
+      if (!parentOf.has(child.id)) {
+        await tx
+          .update(chatMessagesTable)
+          .set({ parentId: survivingAncestor(child.parentId) })
+          .where(eq(chatMessagesTable.id, child.id))
+      }
+    }
+    const deletedAt = nowIso()
+    for (const chunk of inListChunks(ids)) {
+      await tx
+        .update(chatMessagesTable)
+        .set({ ...clearNullableColumns(chatMessagesTable), deletedAt })
+        .where(and(inArray(chatMessagesTable.id, chunk), isNull(chatMessagesTable.deletedAt)))
+    }
+    for (const id of ids) {
+      const metadata = markers.get(id)
+      if (metadata) {
+        await tx.update(chatMessagesTable).set({ metadata }).where(eq(chatMessagesTable.id, id))
+      }
+    }
+  })
 }

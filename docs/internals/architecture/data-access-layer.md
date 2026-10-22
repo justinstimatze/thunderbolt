@@ -32,7 +32,9 @@ Thunderbolt has two directories called `dal`, and they are not the same kind of 
 - The boundary is a convention; no ESLint config mentions `src/dal/`. These query the table
   definitions directly: the defaults reconciler, the four client data migrations,
   `src/defaults/settings.ts`, `src/extensions/tasks/tools.ts`,
-  `src/lib/mcp-auth/ensure-valid-token.ts`. Additions are deliberate.
+  `src/lib/mcp-auth/ensure-valid-token.ts`, and the AI Potluck bridge's reads in
+  `src/integrations/alpha/local-reads.ts`, which join the chat tables to the bridge's own id map so
+  a sync pass reads only the rows that may need syncing. Additions are deliberate.
 
 ### Reads return an un-awaited query
 

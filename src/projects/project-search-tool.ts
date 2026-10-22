@@ -28,6 +28,7 @@ import { tool, type Tool } from 'ai'
 import { z } from 'zod'
 
 import type { AnyDrizzleDatabase } from '@/db/database-interface'
+import { blockquote, syncedHitNote } from '@/integrations/alpha/provenance'
 import { planSearchQuery, toLikePattern } from '@/search/query-plan'
 import { bm25Sql, bodyColumnIndex } from '@/search/search-sql'
 
@@ -36,6 +37,8 @@ export type ProjectChatHit = {
   chatThreadId: string
   chatTitle: string
   excerpt: string
+  /** The chat is synced with AI Potluck, so its title and text may come from there. */
+  synced?: boolean
 }
 
 /**
@@ -64,6 +67,7 @@ export const searchProjectChats = async (
   threadIds: readonly string[],
   query: string,
   titleByThreadId: ReadonlyMap<string, string>,
+  syncedThreadIds: ReadonlySet<string> = new Set(),
 ): Promise<ProjectChatHit[]> => {
   const plan = planSearchQuery(query)
   if ((plan.match === null && plan.substrings.length === 0) || threadIds.length === 0) {
@@ -111,6 +115,7 @@ export const searchProjectChats = async (
             chatThreadId: parentId,
             chatTitle: titleByThreadId.get(parentId) ?? 'Untitled chat',
             excerpt: snippet ?? '',
+            ...(syncedThreadIds.has(parentId) ? { synced: true } : {}),
           },
         ]
       : [],
@@ -124,6 +129,8 @@ export type ProjectSearchToolContext = {
    *  since its own history is already in context. */
   threadIds: readonly string[]
   titleByThreadId: ReadonlyMap<string, string>
+  /** Of `threadIds`, the chats synced with AI Potluck; their hits are quoted. */
+  syncedThreadIds?: ReadonlySet<string>
 }
 
 /**
@@ -136,6 +143,7 @@ export const createProjectSearchTool = ({
   projectName,
   threadIds,
   titleByThreadId,
+  syncedThreadIds,
 }: ProjectSearchToolContext): Tool<{ query: string }, string> =>
   tool({
     description:
@@ -148,7 +156,7 @@ export const createProjectSearchTool = ({
       query: z.string().describe('Keywords to look for. Prefer distinctive nouns over full sentences.'),
     }),
     execute: async ({ query }) => {
-      const hits = await searchProjectChats(db, threadIds, query, titleByThreadId)
+      const hits = await searchProjectChats(db, threadIds, query, titleByThreadId, syncedThreadIds)
       return formatProjectChatHits(hits, query)
     },
   })
@@ -156,11 +164,19 @@ export const createProjectSearchTool = ({
 /**
  * Render hits for the model. An empty result says *why* it might be empty, so
  * the model retries with other wording instead of asserting the topic never
- * came up — the single most likely failure mode of a lexical index.
+ * came up — the single most likely failure mode of a lexical index. A hit from
+ * a chat synced with AI Potluck has its title and excerpt quoted after a note,
+ * as `quoteSyncedTurns` does for a synced turn in the chat's own history.
  */
 export const formatProjectChatHits = (hits: readonly ProjectChatHit[], query: string): string => {
   if (hits.length === 0) {
     return `No messages in this project's other chats matched "${query}". This is a keyword search, so try different wording or related terms before telling the user it wasn't discussed.`
   }
-  return hits.map((hit) => `From "${hit.chatTitle}":\n${hit.excerpt}`).join('\n\n')
+  return hits
+    .map((hit) =>
+      hit.synced
+        ? `${syncedHitNote}\n${blockquote(`Chat title: ${hit.chatTitle}\n\n${hit.excerpt}`)}`
+        : `From "${hit.chatTitle}":\n${hit.excerpt}`,
+    )
+    .join('\n\n')
 }

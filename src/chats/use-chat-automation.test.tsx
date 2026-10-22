@@ -110,6 +110,39 @@ describe('useChatAutomation', () => {
     expect(mockChatInstance.regenerate).not.toHaveBeenCalled()
   })
 
+  it('never auto-runs a thread whose trailing user message was synced in from AI Potluck', async () => {
+    const messages: ThunderboltUIMessage[] = [
+      {
+        id: 'msg-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Summarise my inbox' }],
+        metadata: { alpha: { conversationId: 'conv-1', messageId: 'm1' } },
+      },
+    ]
+    const mockChatInstance = createMockChatInstance(messages, 'ready')
+    const mockUseChat = createMockUseChat(mockChatInstance)
+
+    hydrateStore({
+      chatInstance: mockChatInstance,
+      chatThread: null,
+      id: 'thread-1',
+      mcpClients: [],
+      models: [],
+      selectedModel: null,
+      triggerData: null,
+    })
+
+    renderHook(() => useChatAutomation({ useChat: mockUseChat }), {
+      wrapper: createQueryTestWrapper(),
+    })
+
+    await act(async () => {
+      await getClock().runAllAsync()
+    })
+
+    expect(mockChatInstance.regenerate).not.toHaveBeenCalled()
+  })
+
   it('should not trigger if status is not ready', async () => {
     const messages: ThunderboltUIMessage[] = [
       {

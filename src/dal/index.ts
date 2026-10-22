@@ -37,6 +37,7 @@ export {
   createChatThread,
   deleteAllChatThreads,
   deleteChatThread,
+  deleteChatThreadIfEmpty,
   getAllChatThreads,
   getChatThread,
   getContextSizeForThread,
@@ -50,8 +51,11 @@ export {
   deleteChatMessageAndDescendants,
   getChatMessages,
   getLastMessage,
+  restoreChatMessages,
+  saveChatMessagesWithParents,
   saveMessagesWithContextUpdate,
   saveStreamingAssistantMessage,
+  softDeleteChatMessages,
   updateMessage,
 } from './chat-messages'
 

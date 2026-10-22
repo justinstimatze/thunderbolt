@@ -12,6 +12,8 @@ import { deleteChatThread, getAllChatThreads, updateChatThread } from '@/dal'
 import { useCreateNewChat } from '@/hooks/use-create-new-chat'
 import { useDeleteAllChats } from '@/hooks/use-delete-all-chats'
 import { useIsMobile } from '@/hooks/use-mobile'
+import type { ChatDeleteChoice } from '@/integrations/alpha/plan'
+import { recordChatDeleteChoice } from '@/integrations/alpha/storage'
 import { useSettings } from '@/hooks/use-settings'
 import { trackEvent } from '@/lib/posthog'
 import { miniAppPath, useChatDestination } from '@/mini-apps/use-chat-destination'
@@ -64,7 +66,11 @@ export default function Sidebar() {
   const chatThreads = useMemo(() => data ?? [], [data])
 
   const deleteChatMutation = useMutation({
-    mutationFn: async ({ id }: { id: string }) => {
+    mutationFn: async ({ id, choice }: { id: string; choice?: ChatDeleteChoice }) => {
+      // Recorded before the delete, so the AI Potluck bridge reads the person's choice when it sees the deleted chat.
+      if (choice) {
+        await recordChatDeleteChoice(db, id, choice)
+      }
       await deleteChatThread(db, id)
     },
     onSuccess: async () => {

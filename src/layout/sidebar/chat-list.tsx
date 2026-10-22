@@ -6,6 +6,10 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { DeleteAllChatsDialog } from '@/components/delete-all-chats-dialog'
 import { DeleteChatDialog } from '@/components/delete-chat-dialog'
 import { MobileSidebarScrim } from '@/components/ui/scrim'
+import { useDatabase } from '@/contexts'
+import { alphaConfig } from '@/integrations/alpha/config'
+import type { ChatDeleteChoice } from '@/integrations/alpha/plan'
+import { isChatSyncedToAlpha } from '@/integrations/alpha/storage'
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -100,6 +104,18 @@ export const ChatList = ({
 }: ChatListProps) => {
   const { t } = useLingui()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const db = useDatabase()
+  // Whether the chat the dialog is open for is synced with AI Potluck, as checked when it opened.
+  const chatIsSyncedRef = useRef(false)
+  const deleteTargetChat = (choice: ChatDeleteChoice | undefined) => {
+    const threadId = threadIdRef.current
+    // The ref is always set before the dialog opens, so a missing id is
+    // a programming error — fail loudly rather than no-op.
+    if (!threadId) {
+      throw new Error('DeleteChatDialog confirmed without a target thread id')
+    }
+    deleteChatMutation.mutate({ id: threadId, choice })
+  }
   const {
     headerRef: mobileHeaderRef,
     labelRef: mobileLabelRef,
@@ -262,16 +278,18 @@ export const ChatList = ({
         isPending={deleteChatMutation.isPending}
         onCancel={() => {
           threadIdRef.current = null
+          chatIsSyncedRef.current = false
         }}
-        onConfirm={() => {
+        checkSynced={async () => {
           const threadId = threadIdRef.current
-          // The ref is always set before the dialog opens, so a missing id is
-          // a programming error — fail loudly rather than no-op.
-          if (!threadId) {
-            throw new Error('DeleteChatDialog confirmed without a target thread id')
-          }
-          deleteChatMutation.mutate({ id: threadId })
+          chatIsSyncedRef.current =
+            threadId !== null && alphaConfig.ok
+              ? await isChatSyncedToAlpha(db, threadId, alphaConfig.config.origin)
+              : false
+          return chatIsSyncedRef.current
         }}
+        onConfirm={() => deleteTargetChat(chatIsSyncedRef.current ? 'everywhere' : undefined)}
+        onRemoveLocalOnly={() => deleteTargetChat('here-only')}
         ref={deleteChatDialogRef}
       />
     </>

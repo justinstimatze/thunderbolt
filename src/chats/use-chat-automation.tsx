@@ -7,6 +7,14 @@ import { useCurrentChatSession } from './chat-store'
 import { useChat as useChat_default } from '@ai-sdk/react'
 import { messageBookkeepingThrottleMs } from './chat-throttle'
 import { isPrivateAutoRunBlocked } from './private-thread'
+import type { ThunderboltUIMessage } from '@/types'
+
+/**
+ * A message the AI Potluck bridge wrote from outside (`metadata.alpha`). Its thread may end on a
+ * user turn that was asked, and maybe answered, elsewhere; opening the thread must not send it to
+ * this device's model and tools unasked.
+ */
+const isSyncedIn = (message: ThunderboltUIMessage | undefined) => Boolean(message?.metadata?.alpha)
 
 type UseChatAutomationProps = {
   useChat?: typeof useChat_default
@@ -37,7 +45,8 @@ export const useChatAutomation = ({ useChat = useChat_default }: UseChatAutomati
       !stopping &&
       chatInstance?.status === 'ready' &&
       hasMessages &&
-      chatInstance?.messages[chatInstance?.messages.length - 1].role === 'user'
+      chatInstance?.messages[chatInstance?.messages.length - 1].role === 'user' &&
+      !isSyncedIn(chatInstance.messages.at(-1))
     ) {
       if (
         isPrivateAutoRunBlocked({

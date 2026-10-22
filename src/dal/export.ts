@@ -18,6 +18,8 @@ type AllTableName = keyof typeof syncedTables | keyof typeof localOnlyTables
  * - `integrations_secrets`: third-party OAuth tokens (Google / Microsoft).
  *   The importing user re-authenticates instead.
  * - `agents_system`: backend-hydrated catalog, not user content.
+ * - `alpha_sync_secrets` / `alpha_sync_state`: the AI Potluck bridge's OAuth tokens and per-device
+ *   bookkeeping. The importing device connects on its own.
  *
  * Typed against {@link AllTableName} so a future schema rename/removal trips
  * the compiler. Anything not in this list is included.
@@ -26,6 +28,8 @@ const excludedFromExport = [
   'devices',
   'integrations_secrets',
   'agents_system',
+  'alpha_sync_secrets',
+  'alpha_sync_state',
 ] as const satisfies readonly AllTableName[]
 type ExcludedTableName = (typeof excludedFromExport)[number]
 export type IncludedTableName = Exclude<AllTableName, ExcludedTableName>

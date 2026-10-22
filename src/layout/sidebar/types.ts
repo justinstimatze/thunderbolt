@@ -4,6 +4,7 @@
 
 import type { DeleteAllChatsDialogRef } from '@/components/delete-all-chats-dialog'
 import type { DeleteChatDialogRef } from '@/components/delete-chat-dialog'
+import type { ChatDeleteChoice } from '@/integrations/alpha/plan'
 import type { UseMutationResult } from '@tanstack/react-query'
 import type { ReactNode, RefObject } from 'react'
 
@@ -22,7 +23,7 @@ export type ChatThread = {
   miniAppId: string | null
 }
 
-export type DeleteChatMutationType = UseMutationResult<void, Error, { id: string }, unknown>
+export type DeleteChatMutationType = UseMutationResult<void, Error, { id: string; choice?: ChatDeleteChoice }, unknown>
 
 export type DeleteAllChatsMutationType = UseMutationResult<void, Error, void, unknown>
 

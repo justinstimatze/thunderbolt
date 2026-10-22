@@ -201,6 +201,29 @@ export type UIMessageMetadata = {
    * alone, since they may well be artifact reads.
    */
   embeddedSurface?: Exclude<EmbeddedSurfaceChoice, null>
+  /**
+   * Set on a message the AI Potluck bridge (`src/integrations/alpha`) wrote from AI Potluck: the
+   * row it came from there. It syncs with the message, so every device knows the row came from
+   * outside and neither pushes it back nor auto-runs a reply to it.
+   */
+  alpha?: {
+    conversationId: string
+    messageId: string
+    origin?: string
+    createdAt?: string
+    model?: string
+    /**
+     * Fingerprint of the text as the bridge wrote it. A device with no map entry for the row (one
+     * that connected later) compares it with the row's text to tell an untouched copy, which a
+     * reply AI Potluck fills in later may update, from one the person edited.
+     */
+    textHash?: string
+    /**
+     * Left on the soft-deleted row when the bridge deleted it because it left AI Potluck's live
+     * branch, so every device can tell that delete from the person's and bring the row back.
+     */
+    dropped?: boolean
+  }
 }
 
 /**

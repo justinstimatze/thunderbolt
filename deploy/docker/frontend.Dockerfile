@@ -39,6 +39,15 @@ ARG VITE_AUTH_MODE="sso"
 # ORG_ESCROW_ENABLED is switched on server-side — see
 # docs/self-hosting/configuration.md#organizational-key-escrow.
 ARG VITE_ORG_ESCROW_PUBLIC_KEY=""
+# The AI Potluck deployment the conversation bridge syncs with, and the OAuth client it registered.
+# Empty by default, which builds without the bridge. The public sandbox passes
+# VITE_ALPHA_ORIGIN=https://develop.aipotluck.org and VITE_ALPHA_CLIENT_ID=thunderbolt-sandbox, a
+# client that accepts only https://aipotluck-thunderbolt-sandbox.fly.dev as its origin. A build
+# served anywhere else needs its own client (see src/integrations/alpha/README.md).
+ARG VITE_ALPHA_ORIGIN=""
+ARG VITE_ALPHA_CLIENT_ID=""
+ENV VITE_ALPHA_ORIGIN=$VITE_ALPHA_ORIGIN
+ENV VITE_ALPHA_CLIENT_ID=$VITE_ALPHA_CLIENT_ID
 ENV VITE_THUNDERBOLT_CLOUD_URL=$VITE_THUNDERBOLT_CLOUD_URL
 ENV VITE_AUTH_MODE=$VITE_AUTH_MODE
 ENV VITE_ORG_ESCROW_PUBLIC_KEY=$VITE_ORG_ESCROW_PUBLIC_KEY

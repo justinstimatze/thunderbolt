@@ -14,7 +14,7 @@ import '@/testing-library'
 
 import { defaultModels } from '@shared/defaults/models'
 import { inferenceModelHeader } from '@shared/inference-usage'
-import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test'
 import { clearImageSupportCache, setCachedImageSupport } from '@/ai/image-support'
 import { addSkillTool, prepareAiRequestConfig, type PreparedAiRequestConfig } from '@/ai/fetch'
 import { createEvalAdapterContext } from '@/ai/eval/runner'
@@ -35,6 +35,7 @@ import { createTurnTelemetry } from '@/ai/turn-telemetry'
 import { createWebToolBudget, webToolCaps } from '@/ai/web-tool-budget'
 import { clearAuthToken, getAuthToken, setAuthToken } from '@/lib/auth-token'
 import { getLocalSetting } from '@/stores/local-settings-store'
+import { resolveAbsoluteBackendUrl } from '@/lib/url-utils'
 import type { RequestOptions } from '@/lib/http'
 import type { Agent, AgentAdapterContext } from '@/types/acp'
 import type { Model, ThunderboltUIMessage } from '@/types'
@@ -267,6 +268,16 @@ describe('resolvePiModel — image capability', () => {
 })
 
 describe('resolvePiModel — managed Anthropic', () => {
+  // The Anthropic SDK needs an absolute base URL, so the adapter resolves the
+  // configured cloud URL against the page origin. Give the test page one.
+  const originalPageUrl = window.location.href
+  beforeEach(() => {
+    window.location.href = 'https://app.example.com/chats/new'
+  })
+  afterEach(() => {
+    window.location.href = originalPageUrl
+  })
+
   it('routes Thunderbolt Opus through Pi native Messages with its public wire alias', async () => {
     const isKnownAnthropicModel = mock((modelId: string) => modelId === 'claude-opus-5')
     const model = {
@@ -288,7 +299,7 @@ describe('resolvePiModel — managed Anthropic', () => {
       modelId: 'opus-5',
       catalogModelId: 'claude-opus-5',
       // Derived from the configured cloud URL so a local `.env` override cannot flip it.
-      baseURL: `${getLocalSetting('cloudUrl')}/chat`,
+      baseURL: `${resolveAbsoluteBackendUrl(getLocalSetting('cloudUrl'))}/chat`,
       contextWindow: 300_000,
       apiKey: 'thunderbolt',
     })

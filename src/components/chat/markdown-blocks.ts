@@ -20,22 +20,82 @@ const markdownParser = unified().use(remarkParse).use(remarkGfm)
 // Rewrite the paired delimiters into their `$`-equivalents so math renders no
 // matter which convention the model picked. Matching *paired* delimiters (not a
 // lone `\[`/`\(`) avoids clobbering markdown-escaped brackets/parens, and the
-// display pattern spans lines so multi-line equations survive. The optional
-// leading-indent capture preserves a list-indented `\[…\]` (see `indentedFence`;
-// blockquote `>` prefixes are a documented limitation there).
-const displayMathDelimiters = /(^[ \t]*)?\\\[([\s\S]+?)\\\]/gm
-// `[\s\S]+?` (not `.+?`) so a `\(…\)` split across lines is still converted,
-// matching the display pattern. Lazy, so it stops at the first `\)`.
-const inlineMathDelimiters = /\\\(([\s\S]+?)\\\)/g
+// display pair spans lines so multi-line equations survive. A display pair that
+// opens a line after nothing but spaces/tabs keeps that indent (see
+// `indentedFence`; blockquote `>` prefixes are a documented limitation there).
+//
+// Each pair is an opener plus the first closer after a non-empty body. The scan
+// stops at the first opener with no closer after it, since every later opener's
+// closer would lie further right still, so unpaired openers cost linear time (a
+// lazy regex re-scans to the end of the text from each one).
+type DelimiterPair = { open: string; close: string }
+const displayMathDelimiters: DelimiterPair = { open: '\\[', close: '\\]' }
+const inlineMathDelimiters: DelimiterPair = { open: '\\(', close: '\\)' }
+
+// What JavaScript's multiline `^` treats as a line end.
+const isLineTerminator = (char: string): boolean =>
+  char === '\n' || char === '\r' || char === '\u2028' || char === '\u2029'
+
+/**
+ * The spaces/tabs between the start of the line and `index`, or undefined when
+ * anything else precedes `index` on its line or that line start lies before
+ * `floor` (the end of the previous pair, where a regex scan would resume).
+ */
+const lineIndentBefore = (text: string, index: number, floor: number): string | undefined => {
+  let start = index
+  while (start > floor && (text[start - 1] === ' ' || text[start - 1] === '\t')) {
+    start--
+  }
+  return start === 0 || isLineTerminator(text[start - 1]) ? text.slice(start, index) : undefined
+}
+
+/**
+ * Replace each delimiter pair in one linear pass. `replace` gets the whole match
+ * (indent included), the indent when `withIndent` and the pair opens its line,
+ * and the body between the delimiters.
+ */
+const replaceDelimiterPairs = (
+  text: string,
+  { open, close }: DelimiterPair,
+  withIndent: boolean,
+  replace: (match: string, indent: string | undefined, body: string) => string,
+): string => {
+  let result = ''
+  let lastIndex = 0
+  for (;;) {
+    const openIndex = text.indexOf(open, lastIndex)
+    if (openIndex === -1) {
+      break
+    }
+    const bodyStart = openIndex + open.length
+    // The body is at least one character long.
+    const closeIndex = text.indexOf(close, bodyStart + 1)
+    if (closeIndex === -1) {
+      break
+    }
+    const indent = withIndent ? lineIndentBefore(text, openIndex, lastIndex) : undefined
+    const matchStart = indent === undefined ? openIndex : openIndex - indent.length
+    const matchEnd = closeIndex + close.length
+    result +=
+      text.slice(lastIndex, matchStart) +
+      replace(text.slice(matchStart, matchEnd), indent, text.slice(bodyStart, closeIndex))
+    lastIndex = matchEnd
+  }
+  return result + text.slice(lastIndex)
+}
 
 // remark-math only renders `$$…$$` as centered *display* math when the fences
 // sit on their own lines; a single-line `$$…$$` falls back to inline. Models
 // routinely emit standalone equations on a single line, so rewrite any line
 // that is wholly a `$$…$$` equation into the fenced form.
-// Inline `$…$` and mid-sentence `$$…$$` are left untouched (the `$` anchors and
-// single-line `.` keep the match to a whole line), and already-fenced blocks
-// don't match (their `$$` fences are alone on their lines).
-const displayMathLine = /^([ \t]*)\$\$[ \t]*(.+?)[ \t]*\$\$[ \t]*$/gm
+// Inline `$…$` and mid-sentence `$$…$$` are left untouched (only a whole line
+// qualifies), and already-fenced blocks don't match (their `$$` fences are alone
+// on their lines). A line qualifies when, past its leading spaces/tabs, it opens
+// with `$$`, its last non-space/tab characters are `$$`, and at least one
+// character sits between the two. It is checked directly rather than with a
+// regex, whose lazy body would re-scan every run of spaces on the line.
+const lineText = /[^\n\r\u2028\u2029]+/g
+const isSpaceOrTab = (char: string): boolean => char === ' ' || char === '\t'
 
 // Build a fenced `$$ … $$` display block, prefixing every line with `indent`
 // (leading whitespace only) so a promoted equation keeps its list-continuation
@@ -58,6 +118,20 @@ const indentedFence = (indent: string, body: string): string => {
   return `${indent}$$\n${inner}\n${indent}$$`
 }
 
+// A line that is wholly a `$$…$$` equation, as its fenced form; any other line as it is.
+const promoteDisplayMathLine = (line: string): string => {
+  let start = 0
+  while (start < line.length && isSpaceOrTab(line[start])) {
+    start++
+  }
+  let end = line.length
+  while (end > start && isSpaceOrTab(line[end - 1])) {
+    end--
+  }
+  const isWholeLineEquation = end - start >= 5 && line.startsWith('$$', start) && line.endsWith('$$', end)
+  return isWholeLineEquation ? indentedFence(line.slice(0, start), line.slice(start + 2, end - 2)) : line
+}
+
 // Recognize math spans with the pandoc/KaTeX delimiter rules so currency dollars
 // aren't mistaken for math. Display `$$…$$` is taken verbatim. An inline `$…$`
 // span needs a non-space, non-`$` immediately after the opening `$`, and a
@@ -70,6 +144,8 @@ const inlineMathSpan = /\$(?![\s$])[^$\n]*?(?<!\s)\$(?!\d)/g
 // Escape each `$` that precedes a digit *unless* it sits inside a recognized math
 // span — neutralizing currency ("$5", "$10 total") so remark-math renders it as a
 // literal dollar, while leaving digit-leading inline math ("$3.14$") to render.
+// The spans are sorted once and walked alongside the dollars, which arrive in
+// order, so text dense with both stays linear.
 const escapeCurrencyDollars = (text: string): string => {
   const spans: Array<[number, number]> = []
   for (const regex of [displayMathSpan, inlineMathSpan]) {
@@ -77,7 +153,16 @@ const escapeCurrencyDollars = (text: string): string => {
       spans.push([match.index, match.index + match[0].length])
     }
   }
-  const insideMath = (index: number): boolean => spans.some(([start, end]) => index >= start && index < end)
+  spans.sort((a, b) => a[0] - b[0])
+  let next = 0
+  let coveredUntil = 0
+  const insideMath = (index: number): boolean => {
+    while (next < spans.length && spans[next][0] <= index) {
+      coveredUntil = Math.max(coveredUntil, spans[next][1])
+      next++
+    }
+    return index < coveredUntil
+  }
   return text.replace(/\$(?=\d)/g, (dollar, index: number) => (insideMath(index) ? dollar : '\\$'))
 }
 
@@ -90,25 +175,33 @@ const escapeCurrencyDollars = (text: string): string => {
 // is malformed LaTeX to begin with (math modes don't nest), so we don't
 // special-case it — only already-invalid equations are affected, never
 // well-formed ones.
-const rewriteMath = (text: string): string =>
+//
+// Exported for its timing test: every pass is linear, since a message synced
+// from another service can be 200k characters of anything.
+export const rewriteMath = (text: string): string =>
   // Currency escaping runs last, on the fully-normalized text, so it sees every
   // `$$…$$` / `$…$` span — including those just converted from `\[…\]` / `\(…\)`.
   escapeCurrencyDollars(
-    text
-      // Leave an empty `\[ \]` as-is rather than emit an empty `$$…$$` block.
-      .replace(displayMathDelimiters, (match, indent: string | undefined, body: string) =>
-        body.trim() ? indentedFence(indent ?? '', body) : match,
-      )
+    replaceDelimiterPairs(
+      replaceDelimiterPairs(
+        text,
+        displayMathDelimiters,
+        true,
+        // Leave an empty `\[ \]` as-is rather than emit an empty `$$…$$` block.
+        (match, indent, body) => (body.trim() ? indentedFence(indent ?? '', body) : match),
+      ),
+      inlineMathDelimiters,
+      false,
       // Inline math is single-line by nature, so collapse internal whitespace
       // (including the newline a multi-line `\(…\)` carried) to a single space.
       // An empty `\( \)` is left untouched: converting it would yield a bare
       // `$$`, which remark-math reads as a display-fence opener and could swallow
       // the following prose.
-      .replace(inlineMathDelimiters, (match, body: string) => {
+      (match, _indent, body) => {
         const inner = body.trim().replace(/\s+/g, ' ')
         return inner ? `$${inner}$` : match
-      })
-      .replace(displayMathLine, (_match, indent: string, body: string) => indentedFence(indent, body)),
+      },
+    ).replace(lineText, promoteDisplayMathLine),
   )
 
 // An inline code span (`` `…` ``, `` ``…`` ``, …). Left verbatim so a message

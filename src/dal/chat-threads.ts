@@ -206,6 +206,37 @@ export const deleteChatThread = async (db: AnyDrizzleDatabase, id: string): Prom
 }
 
 /**
+ * Soft deletes a chat thread only if it has no live messages, checked in the same transaction as
+ * the delete, so a message written meanwhile keeps the thread. Scrubs nullable columns like
+ * `deleteChatThread`. Returns whether the thread was deleted.
+ */
+export const deleteChatThreadIfEmpty = async (db: AnyDrizzleDatabase, id: string): Promise<boolean> =>
+  db.transaction(async (tx) => {
+    const live = await tx
+      .select({ id: chatMessagesTable.id })
+      .from(chatMessagesTable)
+      .where(and(eq(chatMessagesTable.chatThreadId, id), isNull(chatMessagesTable.deletedAt)))
+      .limit(1)
+    if (live.length > 0) {
+      return false
+    }
+    // Only a live thread counts: a missing or already-deleted one was not deleted by this call.
+    const thread = await tx
+      .select({ id: chatThreadsTable.id })
+      .from(chatThreadsTable)
+      .where(and(eq(chatThreadsTable.id, id), isNull(chatThreadsTable.deletedAt)))
+      .limit(1)
+    if (thread.length === 0) {
+      return false
+    }
+    await tx
+      .update(chatThreadsTable)
+      .set({ ...clearNullableColumns(chatThreadsTable), deletedAt: nowIso() })
+      .where(and(eq(chatThreadsTable.id, id), isNull(chatThreadsTable.deletedAt)))
+    return true
+  })
+
+/**
  * Soft deletes all chat threads (sets deletedAt datetime)
  * Also soft-deletes all associated messages
  * Scrubs all nullable columns for privacy

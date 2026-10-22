@@ -21,6 +21,7 @@ import { PageCreateAction } from '@/components/ui/page-create-action'
 import { PageHeader } from '@/components/ui/page-header'
 import { PageSearch } from '@/components/ui/page-search'
 import { Switch } from '@/components/ui/switch'
+import { AlphaSyncCard } from '@/integrations/alpha/alpha-sync-card'
 import type { McpServer } from '@/types'
 import { cleanServerUrl, serverDisplayName, serverMatchesQuery } from './display'
 import type { Integration } from './types'
@@ -228,6 +229,8 @@ export const ConnectionsList = ({
             ))}
           </ul>
         )}
+
+        {!query && <AlphaSyncCard />}
 
         {filteredServers.length > 0 && (
           <div className="mt-5 flex flex-col gap-2">

@@ -161,6 +161,9 @@ export const integrationsSecretsTable = sqliteTable('integrations_secrets', {
   enabled: integer('enabled').default(0),
 })
 
+/** Local-only tables for the AI Potluck conversation bridge (`src/integrations/alpha`). */
+export { alphaSyncSecretsTable, alphaSyncStateTable } from '@/integrations/alpha/tables'
+
 /** Local-only table for MCP server credentials (bearer tokens / API keys). Never synced via PowerSync. */
 export const mcpSecretsTable = sqliteTable('mcp_secrets', {
   id: text('id').primaryKey(), // = mcp_servers.id

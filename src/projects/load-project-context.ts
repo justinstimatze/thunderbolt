@@ -12,6 +12,7 @@
 import { getProject, getProjectChatThreads } from '@/dal/projects'
 import type { AnyDrizzleDatabase } from '@/db/database-interface'
 import { getChatThread } from '@/dal/chat-threads'
+import { readSyncedThreadIds } from '@/integrations/alpha/synced-threads'
 import type { ProjectPromptContext } from './project-prompt'
 
 /** Everything a send needs from the owning project: prompt content plus the
@@ -23,6 +24,8 @@ export type ProjectSendContext = {
    *  is already in context. */
   siblingThreadIds: string[]
   titleByThreadId: Map<string, string>
+  /** Sibling chats synced with AI Potluck, whose text and titles the search tool quotes. */
+  syncedThreadIds: Set<string>
 }
 
 /**
@@ -47,13 +50,15 @@ export const loadProjectContextForThread = async (
   }
   const siblings = (await getProjectChatThreads(db, project.id)) as { id: string; title: string | null }[]
   const titleByThreadId = new Map(siblings.map((thread) => [thread.id, thread.title ?? 'Untitled chat']))
+  const siblingThreadIds = siblings.map((thread) => thread.id).filter((id) => id !== chatThreadId)
   return {
     id: project.id,
     prompt: {
       name: project.name,
       instructions: project.instructions ?? null,
     },
-    siblingThreadIds: siblings.map((thread) => thread.id).filter((id) => id !== chatThreadId),
+    siblingThreadIds,
     titleByThreadId,
+    syncedThreadIds: await readSyncedThreadIds(db, siblingThreadIds),
   }
 }

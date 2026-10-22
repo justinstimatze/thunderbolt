@@ -55,6 +55,7 @@ import {
   type SkillDefinition,
 } from '@shared/agent-core/skills'
 import { blobToBase64, getAttachments, undeliverableAttachmentsNote, type HydratedAttachment } from '@/lib/attachments'
+import { quoteSyncedTurns } from '@/integrations/alpha/provenance'
 import { renderMessageQuotesAsText } from '@/lib/quotes'
 import { getTransformer } from '@/files/transformers'
 import { getAttachment } from '@/lib/file-blob-storage'
@@ -120,12 +121,14 @@ export const adaptCapabilities = (response: InitializeResponse): AgentCapabiliti
   }
 }
 
-/** Parse the AI SDK request body `{ messages: ThunderboltUIMessage[], id }`. */
+/** Parse the AI SDK request body `{ messages: ThunderboltUIMessage[], id }`, with every turn synced
+ *  from AI Potluck quoted behind a note (`quoteSyncedTurns`): both the prompt and the fallback
+ *  transcript are built from this, and the agent may run tools on what it reads. */
 const parseRequestMessages = (init: RequestInit): ThunderboltUIMessage[] => {
   if (typeof init.body !== 'string') {
     throw new Error('ACP adapter expects string body on init')
   }
-  return (JSON.parse(init.body) as { messages: ThunderboltUIMessage[] }).messages
+  return quoteSyncedTurns((JSON.parse(init.body) as { messages: ThunderboltUIMessage[] }).messages)
 }
 
 /** Concatenate a UI message's text parts. Non-text parts are dropped — the MVP
